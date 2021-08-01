@@ -1,0 +1,819 @@
+---
+title: "Shit I Need to Do"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  flexdashboard::flex_dashboard:
+    storyboard: true
+    theme: united
+---
+
+```{r setup, include=FALSE}
+library(dplyr)
+#library(flexdashboard)
+library(ggraph)
+library(ggplot2)
+library(googlesheets4)
+#library(hrbrthemes)
+library(igraph)
+library(kableExtra)
+library(tidyverse)
+library(tidytext)
+library(viridis)
+library(wesanderson)
+
+
+# set most recent month and year
+current_month <- "Jul"
+current_year <- "2021"
+
+
+# import the kraken 
+task_list <- read_sheet("google_sheets_url_here")
+
+
+# add columns for month because we might want them
+task_list <- task_list %>%
+  add_column(Month_Due = NA, Month_Complete = NA, Full_Due_Date = NA) %>%
+  mutate(Month_Due = Due_Date, Month_Complete = Complete_Date, Full_Due_Date = Due_Date) %>%
+  add_column(Year_Due = NA, Year_Complete = NA) %>%
+  mutate(Year_Due = Due_Date, Year_Complete = Complete_Date) %>%
+  mutate(
+    Month_Due = as.factor(Month_Due),
+    Year_Due = as.factor(Year_Due), 
+    Month_Due = as.factor(Month_Due),
+    Month_Complete = as.factor(Month_Complete)
+  )
+
+
+# tidy it 
+task_list$Due_Date <- substr(task_list$Due_Date, 6, 10)
+
+task_list$Month_Due <- substr(task_list$Month_Due, 6, 7)
+task_list$Month_Complete <- substr(task_list$Month_Complete, 6, 7)
+
+task_list$Year_Due <- substr(task_list$Year_Due, 1, 4)
+task_list$Year_Complete <- substr(task_list$Year_Complete, 1, 4)
+
+
+# order it --> month due
+task_list <- task_list %>%
+  mutate(Month_Due = ifelse(Month_Due == "01", "Jan", Month_Due)) %>%
+  mutate(Month_Due = ifelse(Month_Due == "02", "Feb", Month_Due)) %>%
+  mutate(Month_Due = ifelse(Month_Due == "03", "Mar", Month_Due)) %>%
+  mutate(Month_Due = ifelse(Month_Due == "04", "Apr", Month_Due)) %>%
+  mutate(Month_Due = ifelse(Month_Due == "05", "May", Month_Due)) %>%
+  mutate(Month_Due = ifelse(Month_Due == "06", "Jun", Month_Due)) %>%
+  mutate(Month_Due = ifelse(Month_Due == "07", "Jul", Month_Due)) %>%
+  mutate(Month_Due = ifelse(Month_Due == "08", "Aug", Month_Due)) %>%
+  mutate(Month_Due = ifelse(Month_Due == "09", "Sep", Month_Due)) %>%
+  mutate(Month_Due = ifelse(Month_Due == "10", "Oct", Month_Due)) %>%
+  mutate(Month_Due = ifelse(Month_Due == "11", "Nov", Month_Due)) %>%
+  mutate(Month_Due = ifelse(Month_Due == "12", "Dec", Month_Due))
+
+task_list$Month_Due <- ordered(task_list$Month_Due, 
+                     levels = c("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep",
+                              "Oct", "Nov", "Dec"))
+
+
+# order it --> month complete
+task_list <- task_list %>%
+  mutate(Month_Complete = ifelse(Month_Complete == "01", "Jan", Month_Complete)) %>%
+  mutate(Month_Complete = ifelse(Month_Complete == "02", "Feb", Month_Complete)) %>%
+  mutate(Month_Complete = ifelse(Month_Complete == "03", "Mar", Month_Complete)) %>%
+  mutate(Month_Complete = ifelse(Month_Complete == "04", "Apr", Month_Complete)) %>%
+  mutate(Month_Complete = ifelse(Month_Complete == "05", "May", Month_Complete)) %>%
+  mutate(Month_Complete = ifelse(Month_Complete == "06", "Jun", Month_Complete)) %>%
+  mutate(Month_Complete = ifelse(Month_Complete == "07", "Jul", Month_Complete)) %>%
+  mutate(Month_Complete = ifelse(Month_Complete == "08", "Aug", Month_Complete)) %>%
+  mutate(Month_Complete = ifelse(Month_Complete == "09", "Sep", Month_Complete)) %>%
+  mutate(Month_Complete = ifelse(Month_Complete == "10", "Oct", Month_Complete)) %>%
+  mutate(Month_Complete = ifelse(Month_Complete == "11", "Nov", Month_Complete)) %>%
+  mutate(Month_Complete = ifelse(Month_Complete == "12", "Dec", Month_Complete))
+
+task_list$Month_Complete <- ordered(task_list$Month_Complete, 
+                     levels = c("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep",
+                              "Oct", "Nov", "Dec"))
+
+
+```
+
+Overall Things to Do {data-navmenu="Overview"}
+=====================================
+
+Column
+-----------------------------------------------------------------------
+
+### All the Shit I Have to Do
+
+```{r eval=TRUE, echo=FALSE, error=FALSE, message=FALSE, warning=FALSE}
+task_list %>%
+  filter(Complete == "No") %>%
+  select(c(Work_Area, Project, Task, Due_Date)) %>%
+  rename(`Work Area` = Work_Area, `Due Date` = Due_Date) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "responsive", "condensed")) %>%
+  column_spec(1, width = "10em") %>%
+  column_spec(2, width = "10em") %>%
+  column_spec(4, width = "4em", background = "yellow")
+
+```
+
+Column
+-----------------------------------------------------------------------
+
+### Things Needing to be Done - Personal
+
+```{r eval=TRUE, echo=FALSE, error=FALSE, message=FALSE, warning=FALSE}
+task_list %>%
+  filter(Month_Due == current_month) %>%
+  filter(Complete == "No") %>%
+  filter((Life_Area == "Personal")) %>%
+  select(c(Project, Task, Due_Date, Notes)) %>%
+  rename(`Due Date` = Due_Date) %>%
+  kbl() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "responsive", "condensed")) %>%
+  column_spec(1, width = "10em") %>%
+  column_spec(2, width = "15em") %>%
+  column_spec(3, width = "4em", background = "yellow")
+  
+
+```
+
+### Things Needing to be Done - PhD Life and Moving
+
+```{r eval=TRUE, echo=FALSE, error=FALSE, message=FALSE, warning=FALSE}
+task_list %>%
+  filter(Month_Due == current_month) %>%
+  filter(Complete == "No") %>%
+  filter((Life_Area == "Inverted Diaspora") | (Life_Area == "PhD Life")) %>%
+  select(c(Project, Task, Due_Date, Notes)) %>%
+  arrange(Due_Date) %>%
+  rename(`Due Date` = Due_Date) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "responsive", "condensed")) %>%
+  column_spec(1, width = "10em") %>%
+  column_spec(2, width = "15em") %>%
+  column_spec(3, width = "4em", background = "yellow")
+
+```
+
+### Things Needing to be Done - RHINO and Other Profesh Things
+
+```{r eval=TRUE, echo=FALSE, error=FALSE, message=FALSE, warning=FALSE}
+
+task_list %>%
+  filter(Month_Due == current_month) %>%
+  filter(Complete == "No") %>%
+  filter((Life_Area == "RHINO") | (Life_Area == "Professional Associations") | (Life_Area == "Professional Development")) %>%
+  select(c(Project, Task, Due_Date, Notes)) %>%
+  rename(`Due Date` = Due_Date) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "responsive", "condensed")) %>%
+  column_spec(1, width = "10em") %>%
+  column_spec(2, width = "15em") %>%
+  column_spec(3, width = "4em", background = "yellow")
+
+```
+
+### Things Needing to be Done - Teaching
+
+```{r eval=TRUE, echo=FALSE, error=FALSE, message=FALSE, warning=FALSE}
+
+task_list %>%
+  filter(Month_Due == current_month) %>%
+  filter(Complete == "No") %>%
+  filter((Life_Area == "Teaching")) %>%
+  select(c(Project, Task, Due_Date, Notes)) %>%
+  rename(`Due Date` = Due_Date) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "responsive", "condensed")) %>%
+  column_spec(1, width = "10em") %>%
+  column_spec(2, width = "15em") %>%
+  column_spec(3, width = "4em", background = "yellow")
+
+```
+
+Overview {data-navmenu="Personal"}
+=====================================
+
+Column
+-----------------------------------------------------------------------
+
+### Personal - To Do
+
+```{r eval=TRUE, echo=FALSE, error=FALSE, message=FALSE, warning=FALSE}
+
+task_list %>%
+  filter(Complete == "No") %>%
+  filter(Life_Area == "Personal") %>%
+  select(c(Project, Task, Due_Date, Notes)) %>%
+  arrange(Due_Date) %>%
+  rename(`Due Date` = Due_Date) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "responsive", "condensed")) %>%
+  column_spec(1, width = "10em") %>%
+  column_spec(2, width = "15em") %>%
+  column_spec(3, width = "4em", background = "yellow")
+
+```
+
+Column
+-----------------------------------------------------------------------
+
+### Done - Household
+
+```{r eval=TRUE, echo=FALSE, error=FALSE, message=FALSE, warning=FALSE}
+
+task_list %>%
+  filter(Complete == "Yes") %>%
+  filter(Life_Area == "Personal") %>%
+  filter(Work_Area == "Household") %>%
+  group_by(Project, Year_Complete, Month_Complete) %>%
+  count(Task) %>%
+  summarise(sum(n)) %>%
+  rename(`Tasks Completed` = "sum(n)", `Year Complete` = Year_Complete, `Month Complete` = Month_Complete) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "responsive", "condensed")) %>%
+  column_spec(2, width = "7em") %>%
+  column_spec(3, width = "7em") %>%
+  column_spec(4, width = "7em")
+
+```
+
+### Done - Parenting
+
+```{r eval=TRUE, echo=FALSE, error=FALSE, message=FALSE, warning=FALSE}
+
+task_list %>%
+  filter(Complete == "Yes") %>%
+  filter(Life_Area == "Personal") %>%
+  filter(Work_Area == "Parenting") %>%
+  group_by(Project, Year_Complete, Month_Complete) %>%
+  count(Task) %>%
+  summarise(sum(n)) %>%
+  rename(`Tasks Completed` = "sum(n)", `Year Complete` = Year_Complete, `Month Complete` = Month_Complete) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "responsive", "condensed")) %>%
+  column_spec(2, width = "7em") %>%
+  column_spec(3, width = "7em") %>%
+  column_spec(4, width = "7em")
+
+```
+
+### Done - Everything Else
+
+```{r eval=TRUE, echo=FALSE, error=FALSE, message=FALSE, warning=FALSE}
+
+task_list %>%
+  filter(Complete == "Yes") %>%
+  filter(Life_Area == "Personal") %>%
+  filter((Work_Area != "Household") | (Work_Area != "Parenting")) %>%
+  group_by(Project, Year_Complete, Month_Complete) %>%
+  count(Task) %>%
+  summarise(sum(n)) %>%
+  rename(`Tasks Completed` = "sum(n)", `Year Complete` = Year_Complete, `Month Complete` = Month_Complete) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "responsive", "condensed")) %>%
+  column_spec(2, width = "7em") %>%
+  column_spec(3, width = "7em") %>%
+  column_spec(4, width = "7em")
+
+```
+
+General RHINO {data-navmenu="RHINO"}
+=====================================
+
+Column
+-----------------------------------------------------------------------
+
+### General RHINO - To Do
+
+```{r eval=TRUE, echo=FALSE, error=FALSE, message=FALSE, warning=FALSE}
+
+task_list %>%
+  filter(Complete == "No") %>%
+  filter(Life_Area == "RHINO") %>%
+  filter((Work_Area != "RHINO Community of Practice") & (Work_Area != "ED-SNSRO") & (Work_Area != "FASTER") & (Work_Area != "OD2A") & 
+           (Work_Area != "WTSC")) %>%
+  select(c(Work_Area, Project, Task, Due_Date, Notes)) %>%
+  arrange(Due_Date) %>%
+  rename(`Work Area` = Work_Area, `Due Date` = Due_Date) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "responsive", "condensed")) %>%
+  column_spec(1, width = "10em") %>%
+  column_spec(2, width = "10em") %>%
+  column_spec(4, width = "4em", background = "yellow")
+
+```
+
+Column
+-----------------------------------------------------------------------
+
+### Done - Administrative
+
+```{r eval=TRUE, echo=FALSE, error=FALSE, message=FALSE, warning=FALSE}
+
+task_list %>%
+  filter(Complete == "Yes") %>%
+  filter(Life_Area == "RHINO") %>%
+  filter(Work_Area == "Administrative") %>%
+  group_by(Project, Year_Complete, Month_Complete) %>%
+  count(Task) %>%
+  summarise(sum(n)) %>%
+  rename(`Tasks Completed` = "sum(n)", `Year Complete` = Year_Complete, `Month Complete` = Month_Complete) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "responsive", "condensed")) %>%
+  column_spec(2, width = "7em") %>%
+  column_spec(3, width = "7em") %>%
+  column_spec(4, width = "7em")
+
+```
+
+### Done - Surveillance
+
+```{r eval=TRUE, echo=FALSE, error=FALSE, message=FALSE, warning=FALSE}
+
+task_list %>%
+  filter(Complete == "Yes") %>%
+  filter(Life_Area == "RHINO") %>%
+  filter((Work_Area != "RHINO Community of Practice") & (Work_Area != "ED-SNSRO") & (Work_Area != "FASTER") & 
+           (Work_Area != "OD2A") & (Work_Area != "WTSC") & (Work_Area != "Administrative") & 
+           (Work_Area != "Race and Ethnicity Data Project") & 
+           (Work_Area != "User Support") & (Work_Area != "Tyler Practicum")) %>%
+  group_by(Work_Area, Project, Year_Complete, Month_Complete) %>%
+  count(Task) %>%
+  summarise(sum(n)) %>%
+  rename(`Work Area` = Work_Area, `Tasks Completed` = "sum(n)", 
+         `Year Complete` = Year_Complete, `Month Complete` = Month_Complete) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "responsive", "condensed")) %>%
+  column_spec(2, width = "15em") %>%
+  column_spec(3, width = "7em") %>%
+  column_spec(4, width = "7em") %>%
+  column_spec(5, width = "7em")
+
+```
+
+### Done - Student Projects
+
+```{r eval=TRUE, echo=FALSE, error=FALSE, message=FALSE, warning=FALSE}
+
+task_list %>%
+  filter(Complete == "Yes") %>%
+  filter(Life_Area == "RHINO") %>%
+  filter((Work_Area == "Race and Ethnicity Data Project") | (Project == "W34 Investigation") | (Work_Area == "Shafaq Practicum") | 
+           (Work_Area == "Margaret Practicum")) %>%
+  group_by(Work_Area, Project, Year_Complete, Month_Complete) %>%
+  count(Task) %>%
+  summarise(sum(n)) %>%
+  rename(`Work Area` = Work_Area, `Tasks Completed` = "sum(n)", `Year Complete` = Year_Complete, `Month Complete` = Month_Complete) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "responsive", "condensed")) %>%
+  column_spec(2, width = "15em") %>%
+  column_spec(3, width = "7em") %>%
+  column_spec(4, width = "7em") %>%
+  column_spec(5, width = "7em")
+
+```
+
+Community of Practice {data-navmenu="RHINO"}
+=====================================
+
+Column
+-----------------------------------------------------------------------
+
+### RHINO Community of Practice - To Do
+
+```{r eval=TRUE, echo=FALSE, error=FALSE, message=FALSE, warning=FALSE}
+
+task_list %>%
+  filter(Complete == "No") %>%
+  filter(Work_Area == "RHINO Community of Practice") %>%
+  select(c(Project, Task, Due_Date, Notes)) %>%
+  arrange(Due_Date) %>%
+  rename(`Due Date` = Due_Date) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "responsive", "condensed")) %>%
+  column_spec(1, width = "10em") %>%
+  column_spec(2, width = "15em") %>%
+  column_spec(3, width = "4em", background = "yellow")
+
+```
+
+Column
+-----------------------------------------------------------------------
+
+### Done - Community of Practice Calls
+
+```{r eval=TRUE, echo=FALSE, error=FALSE, message=FALSE, warning=FALSE}
+
+task_list %>%
+  filter(Complete == "Yes") %>%
+  filter(Work_Area == "RHINO Community of Practice") %>%
+  filter(Project == "Community of Practice Call") %>%
+  group_by(Project, Year_Complete, Month_Complete) %>%
+  count(Task) %>%
+  summarise(sum(n)) %>%
+  rename(`Tasks Completed` = "sum(n)", `Year Complete` = Year_Complete, `Month Complete` = Month_Complete) %>%
+  kbl() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "responsive", "condensed")) %>%
+  column_spec(2, width = "7em") %>%
+  column_spec(3, width = "7em") %>%
+  column_spec(4, width = "7em")
+
+```
+
+### Done - ESSENCE Skills Training
+
+```{r eval=TRUE, echo=FALSE, error=FALSE, message=FALSE, warning=FALSE}
+
+task_list %>%
+  filter(Complete == "Yes") %>%
+  filter(Work_Area == "RHINO Community of Practice") %>%
+  filter(Project == "ESSENCE Skills Webinars") %>%
+  group_by(Project, Year_Complete, Month_Complete) %>%
+  count(Task) %>%
+  summarise(sum(n)) %>%
+  rename(`Tasks Completed` = "sum(n)", `Year Complete` = Year_Complete, `Month Complete` = Month_Complete) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "responsive", "condensed")) %>%
+  column_spec(2, width = "7em") %>%
+  column_spec(3, width = "7em") %>%
+  column_spec(4, width = "7em")
+
+```
+
+### Done - User Support
+
+```{r eval=TRUE, echo=FALSE, error=FALSE, message=FALSE, warning=FALSE}
+
+task_list %>%
+  filter(Complete == "Yes") %>%
+  filter(Work_Area == "RHINO Community of Practice") %>%
+  filter((Project == "Publication Review") | (Project == "User Support")) %>%
+  group_by(Project, Year_Complete, Month_Complete) %>%
+  count(Task) %>%
+  summarise(sum(n)) %>%
+  rename(`Tasks Completed` = "sum(n)", `Year Complete` = Year_Complete, `Month Complete` = Month_Complete) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "responsive", "condensed")) %>%
+  column_spec(2, width = "7em") %>%
+  column_spec(3, width = "7em") %>%
+  column_spec(4, width = "7em")
+
+```
+
+Grants {data-navmenu="RHINO"}
+=====================================
+
+Column
+-----------------------------------------------------------------------
+
+### To Do
+
+```{r eval=TRUE, echo=FALSE, error=FALSE, message=FALSE, warning=FALSE}
+
+task_list %>%
+  filter(Complete == "No") %>%
+  filter(Life_Area == "RHINO") %>%
+  filter((Work_Area == "FASTER") | (Work_Area == "ED-SNSRO") | (Work_Area == "OD2A") | (Work_Area == "WTSC")) %>%
+  select(c(Work_Area, Project, Task, Due_Date, Notes)) %>%
+  arrange(Due_Date) %>%
+  rename(`Work Area` = Work_Area, `Due Date` = Due_Date) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "responsive", "condensed")) %>%
+  column_spec(1, width = "10em") %>%
+  column_spec(2, width = "10em") %>%
+  column_spec(4, width = "4em", background = "yellow")
+
+```
+
+Column
+-----------------------------------------------------------------------
+
+### Done - ED-SNSRO
+
+```{r eval=TRUE, echo=FALSE, error=FALSE, message=FALSE, warning=FALSE}
+
+task_list %>%
+  filter(Complete == "Yes") %>%
+  filter(Life_Area == "RHINO") %>%
+  filter(Work_Area == "ED-SNSRO") %>%
+  group_by(Project, Year_Complete, Month_Complete) %>%
+  count(Task) %>%
+  summarise(sum(n)) %>%
+  rename(`Tasks Completed` = "sum(n)", `Year Complete` = Year_Complete, `Month Complete` = Month_Complete) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "responsive", "condensed")) %>%
+  column_spec(2, width = "7em") %>%
+  column_spec(3, width = "7em") %>%
+  column_spec(4, width = "7em")
+
+```
+
+### Done - FASTER
+
+```{r eval=TRUE, echo=FALSE, error=FALSE, message=FALSE, warning=FALSE}
+
+task_list %>%
+  filter(Complete == "Yes") %>%
+  filter(Life_Area == "RHINO") %>%
+  filter(Work_Area == "FASTER") %>%
+  group_by(Project, Year_Complete, Month_Complete) %>%
+  count(Task) %>%
+  summarise(sum(n)) %>%
+  rename(`Tasks Completed` = "sum(n)", `Year Complete` = Year_Complete, `Month Complete` = Month_Complete) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "responsive", "condensed")) %>%
+  column_spec(2, width = "7em") %>%
+  column_spec(3, width = "7em") %>%
+  column_spec(4, width = "7em")
+
+```
+
+### Done - OD2A
+
+```{r eval=TRUE, echo=FALSE, error=FALSE, message=FALSE, warning=FALSE}
+
+task_list %>%
+  filter(Complete == "Yes") %>%
+  filter(Life_Area == "RHINO") %>%
+  filter(Work_Area == "OD2A") %>%
+  group_by(Project, Year_Complete, Month_Complete) %>%
+  count(Task) %>%
+  summarise(sum(n)) %>%
+  rename(`Tasks Completed` = "sum(n)", `Year Complete` = Year_Complete, `Month Complete` = Month_Complete) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "responsive", "condensed")) %>%
+  column_spec(2, width = "7em") %>%
+  column_spec(3, width = "7em") %>%
+  column_spec(4, width = "7em")
+
+```
+
+### Done - WTSC
+
+```{r eval=TRUE, echo=FALSE, error=FALSE, message=FALSE, warning=FALSE}
+
+task_list %>%
+  filter(Complete == "Yes") %>%
+  filter(Life_Area == "RHINO") %>%
+  filter(Work_Area == "WTSC") %>%
+  group_by(Project, Year_Complete, Month_Complete) %>%
+  count(Task) %>%
+  summarise(sum(n)) %>%
+  rename(`Tasks Completed` = "sum(n)", `Year Complete` = Year_Complete, `Month Complete` = Month_Complete) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "responsive", "condensed")) %>%
+  column_spec(2, width = "7em") %>%
+  column_spec(3, width = "7em") %>%
+  column_spec(4, width = "7em")
+
+```
+
+Overview {data-navmenu="PhD Life"}
+=====================================
+
+Column
+-----------------------------------------------------------------------
+
+### PhD Life - To Do
+
+```{r eval=TRUE, echo=FALSE, error=FALSE, message=FALSE, warning=FALSE}
+
+task_list %>%
+  filter(Complete == "No") %>%
+  filter((Life_Area == "PhD Life") | (Life_Area == "Inverted Diaspora")) %>%
+  select(c(Project, Task, Due_Date, Notes)) %>%
+  arrange(Due_Date) %>%
+  rename(`Due Date` = Due_Date) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "responsive", "condensed")) %>%
+  column_spec(1, width = "10em") %>%
+  column_spec(2, width = "15em") %>%
+  column_spec(3, width = "4em", background = "yellow")
+
+```
+
+Column
+-----------------------------------------------------------------------
+
+### Done - Thesis
+
+```{r eval=TRUE, echo=FALSE, error=FALSE, message=FALSE, warning=FALSE}
+
+task_list %>%
+  filter(Complete == "Yes") %>%
+  filter(Life_Area == "PhD Life") %>%
+  filter(Work_Area == "Thesis") %>%
+  group_by(Project, Year_Complete, Month_Complete) %>%
+  count(Task) %>%
+  summarise(sum(n)) %>%
+  rename(`Tasks Completed` = "sum(n)", `Year Complete` = Year_Complete, `Month Complete` = Month_Complete) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "responsive", "condensed")) %>%
+  column_spec(2, width = "7em") %>%
+  column_spec(3, width = "7em") %>%
+  column_spec(4, width = "7em")
+
+
+```
+
+### Done - Inverted Diaspora
+
+```{r eval=TRUE, echo=FALSE, error=FALSE, message=FALSE, warning=FALSE}
+
+task_list %>%
+  filter(Complete == "Yes") %>%
+  filter(Life_Area == "Inverted Diaspora") %>%
+  group_by(Work_Area, Project, Year_Complete, Month_Complete) %>%
+  count(Task) %>%
+  summarise(sum(n)) %>%
+  rename(`Work Area` = Work_Area, `Tasks Completed` = "sum(n)", `Year Complete` = Year_Complete, `Month Complete` = Month_Complete) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "responsive", "condensed")) %>%
+  column_spec(2, width = "15em") %>%
+  column_spec(3, width = "7em") %>%
+  column_spec(4, width = "7em") %>%
+  column_spec(5, width = "7em")
+
+```
+
+### Done - Everything Else
+
+```{r eval=TRUE, echo=FALSE, error=FALSE, message=FALSE, warning=FALSE}
+
+task_list %>%
+  filter(Complete == "Yes") %>%
+  filter(Life_Area == "PhD Life") %>%
+  filter(Project != "Thesis") %>%
+  group_by(Work_Area, Project, Year_Complete, Month_Complete) %>%
+  count(Task) %>%
+  summarise(sum(n)) %>%
+  rename(`Work Area` = Work_Area, `Tasks Completed` = "sum(n)", `Year Complete` = Year_Complete, `Month Complete` = Month_Complete) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "responsive", "condensed")) %>%
+  column_spec(2, width = "15em") %>%
+  column_spec(3, width = "7em") %>%
+  column_spec(4, width = "7em") %>%
+  column_spec(5, width = "7em")
+
+```
+
+UW Struggle Bus {data-navmenu="Teaching"}
+=====================================
+
+Column
+-----------------------------------------------------------------------
+
+### Teaching - To Do
+
+```{r eval=TRUE, echo=FALSE, error=FALSE, message=FALSE, warning=FALSE}
+
+task_list %>%
+  filter(Complete == "No") %>%
+  filter((Life_Area == "Teaching")) %>%
+  select(c(Work_Area, Project, Task, Due_Date, Notes)) %>%
+  arrange(Due_Date) %>%
+  rename(`Work Area` = Work_Area, `Due Date` = Due_Date) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "responsive", "condensed")) %>%
+  column_spec(1, width = "10em") %>%
+  column_spec(2, width = "10em") %>%
+  column_spec(4, width = "4em", background = "yellow")
+
+```
+
+Column
+-----------------------------------------------------------------------
+
+### Done - UW Bothell
+
+```{r eval=TRUE, echo=FALSE, error=FALSE, message=FALSE, warning=FALSE}
+
+task_list %>%
+  filter(Complete == "Yes") %>%
+  filter(Life_Area == "Teaching") %>%
+  filter((Work_Area == "UW Bothell") | (Work_Area == "BHLTH 201") | (Work_Area == "BHLTH 301")  | 
+           (Work_Area == "BHS 201")) %>%
+  group_by(Project, Year_Complete, Month_Complete) %>%
+  count(Task) %>%
+  summarise(sum(n)) %>%
+  rename(`Tasks Completed` = "sum(n)", `Year Complete` = Year_Complete, `Month Complete` = Month_Complete) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "responsive", "condensed")) %>%
+  column_spec(2, width = "7em") %>%
+  column_spec(3, width = "7em") %>%
+  column_spec(4, width = "7em")
+
+```
+
+### Done - UW School of Public Health
+
+```{r eval=TRUE, echo=FALSE, error=FALSE, message=FALSE, warning=FALSE}
+
+task_list %>%
+  filter(Complete == "Yes") %>%
+  filter(Life_Area == "Teaching") %>%
+  filter((Work_Area == "UW SPH Health Services") | (Work_Area == "UW SPH Epidemiology")) %>%
+  group_by(Project, Year_Complete, Month_Complete) %>%
+  count(Task) %>%
+  summarise(sum(n)) %>%
+  rename(`Tasks Completed` = "sum(n)", `Year Complete` = Year_Complete, `Month Complete` = Month_Complete) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "responsive", "condensed")) %>%
+  column_spec(2, width = "7em") %>%
+  column_spec(3, width = "7em") %>%
+  column_spec(4, width = "7em")
+
+```
+
+### Done - Everything Else
+
+```{r eval=TRUE, echo=FALSE, error=FALSE, message=FALSE, warning=FALSE}
+
+task_list %>%
+  filter(Complete == "Yes") %>%
+  filter(Life_Area == "Teaching") %>%
+  filter((Work_Area != "UW SPH Health Services") & (Work_Area != "UW Bothell") & (Work_Area != "BHLTH 201") 
+         & (Work_Area != "BHLTH 301")  & (Work_Area != "BHS 201")) %>%
+  group_by(Work_Area, Project, Year_Complete, Month_Complete) %>%
+  count(Task) %>%
+  summarise(sum(n)) %>%
+  rename(`Work Area` = Work_Area, `Tasks Completed` = "sum(n)", `Year Complete` = Year_Complete, 
+         `Month Complete` = Month_Complete) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "responsive", "condensed")) %>%
+  column_spec(3, width = "7em") %>%
+  column_spec(4, width = "7em") %>%
+  column_spec(5, width = "7em")
+
+```
+
+Other Professional Things {data-navmenu="Other Professional"}
+=====================================
+
+Column
+-----------------------------------------------------------------------
+
+### Other Professional Things - To Do
+
+```{r eval=TRUE, echo=FALSE, error=FALSE, message=FALSE, warning=FALSE}
+
+task_list %>%
+  filter(Complete == "No") %>%
+  filter((Life_Area == "Professional Development") | (Life_Area == "Professional Associations")) %>%
+  select(c(Project, Task, Due_Date, Notes)) %>%
+  arrange(Due_Date) %>%
+  rename(`Due Date` = Due_Date) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "responsive", "condensed"))  %>%
+  column_spec(1, width = "10em") %>%
+  column_spec(2, width = "15em") %>%
+  column_spec(3, width = "4em", background = "yellow")
+
+```
+
+Column
+-----------------------------------------------------------------------
+
+### Done - Professional Associations
+
+```{r eval=TRUE, echo=FALSE, error=FALSE, message=FALSE, warning=FALSE}
+
+task_list %>%
+  filter(Complete == "Yes") %>%
+  filter(Life_Area == "Professional Associations") %>%
+  group_by(Work_Area, Project, Year_Complete, Month_Complete) %>%
+  count(Task) %>%
+  summarise(sum(n)) %>%
+  rename(`Work Area` = Work_Area, `Tasks Completed` = "sum(n)", `Year Complete` = Year_Complete, 
+         `Month Complete` = Month_Complete) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "responsive", "condensed")) %>%
+  column_spec(2, width = "15em") %>%
+  column_spec(3, width = "7em") %>%
+  column_spec(4, width = "7em") %>%
+  column_spec(5, width = "7em")
+
+```
+
+### Done - Professional Development
+
+```{r eval=TRUE, echo=FALSE, error=FALSE, message=FALSE, warning=FALSE}
+
+task_list %>%
+  filter(Complete == "Yes") %>%
+  filter(Life_Area == "Professional Development") %>%
+  group_by(Work_Area, Project, Year_Complete, Month_Complete) %>%
+  count(Task) %>%
+  summarise(sum(n)) %>%
+  rename(`Work Area` = Work_Area, `Tasks Completed` = "sum(n)", `Year Complete` = Year_Complete, `Month Complete` = Month_Complete) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "responsive", "condensed")) %>%
+  column_spec(2, width = "15em") %>%
+  column_spec(3, width = "7em") %>%
+  column_spec(4, width = "7em") %>%
+  column_spec(5, width = "7em")
+
+```
