@@ -29,3 +29,5 @@ Column headers for your google sheet should be as follows:
 8. Complete_Date	(Again, no graphing, so format for dates is flexible and I don't mess about with lubridate)
 
 9. Notes (What else do you need to know about the task? Are there files to reference? Did the deliverable hand-off go off well?)
+
+<img width="1440" alt="Task_Management_Flexdash" src="https://user-images.githubusercontent.com/60521652/127755736-2fe8e2b4-75bb-449f-8944-1e4d229717d2.png">
